@@ -18,8 +18,10 @@ public class ContactService {
     public IdentifyResponse identify(IdentifyRequest request) {//take re from idreq as i/p and response as o/p
         String email = request.getEmail();
         String phoneNumber = request.getPhoneNumber();
+        //Find existing conatcts that match the incoming email or  phone number
         List<Contact> matchingContacts = contactRepository.findByEmailOrPhoneNumber(email, phoneNumber);//search db for matching emila or number
 
+        //If no matching contact exists, create a primary contact
         if (matchingContacts.isEmpty()) {
             Contact newContact = new Contact();
             newContact.setEmail(email);
@@ -33,6 +35,7 @@ public class ContactService {
             Contact savedContact = contactRepository.save(newContact);
             return buildCompleteResponse(savedContact);
         }
+        //Find the primary contacts associated with the mathcing records
         List<Contact> primaryContacts = new ArrayList<>();
         for (Contact contact : matchingContacts) {
             if ("primary".equals(contact.getLinkPrecedence())) {
@@ -45,7 +48,9 @@ public class ContactService {
             }
         }
         primaryContacts = primaryContacts.stream().distinct().toList();
+        //Select the oldest primary contact to remain as the primary identity
         Contact primaryContact = primaryContacts.get(0);
+        //Convert other primary contacts into secondary contacts underbthe oldest primary
         for (Contact contact : primaryContacts) {
             if (contact.getCreatedAt().isBefore(primaryContact.getCreatedAt())) {
                 primaryContact = contact;
@@ -66,6 +71,7 @@ public class ContactService {
                 }
             }
         }
+        //Chck whether the incoming email and phone number are already present
         boolean emailExists = false;
         boolean phoneExists = false;
         for (Contact contact : matchingContacts) {
@@ -76,6 +82,7 @@ public class ContactService {
                 phoneExists = true;
             }
         }
+        //Create a secondary contact when the request contains new information
         if (!emailExists || !phoneExists) {
             Contact secondaryContact = new Contact();
             secondaryContact.setEmail(email);
@@ -89,6 +96,7 @@ public class ContactService {
 
             contactRepository.save(secondaryContact);
         }
+        //Return the complete consolidated identity
         return buildCompleteResponse(primaryContact);
     }
     private IdentifyResponse buildCompleteResponse(Contact primaryContact) {
